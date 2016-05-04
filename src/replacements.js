@@ -26,6 +26,9 @@ function links(view, renderer) {
   var links = view.document.querySelectorAll("a[href]");
   var replaceLinks = function(link){
     var href = link.getAttribute("href");
+    if(href.startsWith('mailto:')){
+        return;
+    }
     var linkUri = URI(href);
     var absolute = linkUri.absoluteTo(view.section.url);
     var relative = absolute.relativeTo(this.book.baseUrl).toString();
