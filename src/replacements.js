@@ -53,15 +53,18 @@ function links(view, renderer) {
 				relative = href;
 			}
       */
-
+/*
+ * Display the link we clicked, even if it's a fragment
       if(linkUri.fragment()) {
         // do nothing with fragment yet
+
       } else {
+      }
+      */
         link.onclick = function(){
           renderer.display(relative);
           return false;
         };
-      }
 
     }
   }.bind(this);
