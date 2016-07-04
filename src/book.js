@@ -6,13 +6,19 @@ var Locations = require('./locations');
 var Parser = require('./parser');
 var Navigation = require('./navigation');
 var Rendition = require('./rendition');
-var Continuous = require('./continuous');
-var Paginate = require('./paginate');
 var Unarchive = require('./unarchive');
 var request = require('./request');
 var EpubCFI = require('./epubcfi');
 
 function Book(_url, options){
+
+  this.settings = core.extend(this.settings || {}, {
+		requestMethod: this.requestMethod
+	});
+
+  core.extend(this.settings, options);
+
+
   // Promises
   this.opening = new RSVP.defer();
   this.opened = this.opening.promise;
@@ -44,7 +50,7 @@ function Book(_url, options){
   this.isRendered = false;
   // this._q = core.queue(this);
 
-  this.request = this.requestMethod.bind(this);
+  this.request = this.settings.requestMethod.bind(this);
 
   this.spine = new Spine(this.request);
   this.locations = new Locations(this.spine, this.request);
@@ -62,6 +68,7 @@ Book.prototype.open = function(_url){
   var book = this;
   var containerPath = "META-INF/container.xml";
   var location;
+  var absoluteUri;
 
   if(!_url) {
     this.opening.resolve(this);
@@ -75,7 +82,13 @@ Book.prototype.open = function(_url){
   //   uri = core.uri(_url);
   // }
   uri = URI(_url);
-  this.url = _url;
+
+  if (window) {
+    absoluteUri = uri.absoluteTo(window.location.href);
+    this.url = absoluteUri.toString();
+  } else {
+    this.url = _url;
+  }
 
   // Find path to the Container
   if(uri.suffix() === "opf") {
@@ -85,8 +98,9 @@ Book.prototype.open = function(_url){
 
     if(uri.origin()) {
       this.baseUrl = uri.origin() + "/" + uri.directory() + "/";
-    } else if(window){
-      this.baseUrl = uri.absoluteTo(window.location.href).directory() + "/";
+    } else if(absoluteUri){
+      this.baseUrl = absoluteUri.origin();
+      this.baseUrl += absoluteUri.directory() + "/";
     } else {
       this.baseUrl = uri.directory() + "/";
     }
@@ -124,14 +138,14 @@ Book.prototype.open = function(_url){
       then(function(paths){
         var packageUri = URI(paths.packagePath);
         var absPackageUri = packageUri.absoluteTo(book.url);
+        var absWindowUri;
+
         book.packageUrl = absPackageUri.toString();
         book.encoding = paths.encoding;
 
         // Set Url relative to the content
-        if(packageUri.origin()) {
-          book.baseUrl = packageUri.origin() + "/" + packageUri.directory() + "/";
-        } else if(window && !book.isArchivedUrl(uri)){
-          book.baseUrl = absPackageUri.absoluteTo(window.location.href).directory() + "/";
+        if(absPackageUri.origin()) {
+          book.baseUrl = absPackageUri.origin() + absPackageUri.directory() + "/";
         } else {
           if(packageUri.directory()) {
             book.baseUrl = "/" + packageUri.directory() + "/";
@@ -208,12 +222,11 @@ Book.prototype.section = function(target) {
 
 // Sugar to render a book
 Book.prototype.renderTo = function(element, options) {
-  var renderMethod = (options && options.method) ?
-      options.method :
-      "rendition";
-  var Renderer = require('./'+renderMethod);
+  // var renderMethod = (options && options.method) ?
+  //     options.method :
+  //     "single";
 
-  this.rendition = new Renderer(this, options);
+  this.rendition = new Rendition(this, options);
   this.rendition.attachTo(element);
 
   return this.rendition;
