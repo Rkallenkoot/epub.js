@@ -1,12 +1,12 @@
 var RSVP = require('rsvp');
-var core = require('./core');
-var Continuous = require('./continuous');
-var Map = require('./map');
-var Layout = require('./layout');
+var core = require('../core');
+var ContinuousViewManager = require('./continuous');
+var Map = require('../map');
+var Layout = require('../layout');
 
-function Paginate(book, options) {
+function PaginatedViewManager(options) {
 
-  Continuous.apply(this, arguments);
+  ContinuousViewManager.apply(this, arguments); // call super constructor.
 
   this.settings = core.extend(this.settings || {}, {
     width: 600,
@@ -19,28 +19,28 @@ function Paginate(book, options) {
     infinite: false
   });
 
-  core.extend(this.settings, options);
+  core.defaults(this.settings, options.settings || {});
 
   this.isForcedSingle = this.settings.forceSingle;
 
   this.viewSettings.axis = this.settings.axis;
 
-  this.start();
+  // this.start();
 };
 
-Paginate.prototype = Object.create(Continuous.prototype);
-Paginate.prototype.constructor = Paginate;
+PaginatedViewManager.prototype = Object.create(ContinuousViewManager.prototype);
+PaginatedViewManager.prototype.constructor = PaginatedViewManager;
 
 
-Paginate.prototype.determineSpreads = function(cutoff){
-  if(this.isForcedSingle || !cutoff || this.bounds().width < cutoff) {
+PaginatedViewManager.prototype.determineSpreads = function(cutoff){
+  if(this.isForcedSingle || !cutoff || this.stage.bounds().width < cutoff) {
     return 1; //-- Single Page
   }else{
     return 2; //-- Double Page
   }
 };
 
-Paginate.prototype.forceSingle = function(bool){
+PaginatedViewManager.prototype.forceSingle = function(bool){
   if(bool === false) {
     this.isForcedSingle = false;
     // this.spreads = false;
@@ -51,50 +51,15 @@ Paginate.prototype.forceSingle = function(bool){
   this.applyLayoutMethod();
 };
 
-/**
-* Uses the settings to determine which Layout Method is needed
-* Triggers events based on the method choosen
-* Takes: Layout settings object
-* Returns: String of appropriate for EPUBJS.Layout function
-*/
-// Paginate.prototype.determineLayout = function(settings){
-//   // Default is layout: reflowable & spread: auto
-//   var spreads = this.determineSpreads(this.settings.minSpreadWidth);
-//   console.log("spreads", spreads, this.settings.minSpreadWidth)
-//   var layoutMethod = spreads ? "ReflowableSpreads" : "Reflowable";
-//   var scroll = false;
-//
-//   if(settings.layout === "pre-paginated") {
-//     layoutMethod = "Fixed";
-//     scroll = true;
-//     spreads = false;
-//   }
-//
-//   if(settings.layout === "reflowable" && settings.spread === "none") {
-//     layoutMethod = "Reflowable";
-//     scroll = false;
-//     spreads = false;
-//   }
-//
-//   if(settings.layout === "reflowable" && settings.spread === "both") {
-//     layoutMethod = "ReflowableSpreads";
-//     scroll = false;
-//     spreads = true;
-//   }
-//
-//   this.spreads = spreads;
-//
-//   return layoutMethod;
-// };
 
-Paginate.prototype.start = function(){
+PaginatedViewManager.prototype.addEventListeners = function(){
   // On display
   // this.layoutSettings = this.reconcileLayoutSettings(globalLayout, chapter.properties);
   // this.layoutMethod = this.determineLayout(this.layoutSettings);
   // this.layout = new EPUBJS.Layout[this.layoutMethod]();
   //this.hooks.display.register(this.registerLayoutMethod.bind(this));
   // this.hooks.display.register(this.reportLocation);
-  this.on('displayed', this.reportLocation.bind(this));
+  // this.on('displayed', this.reportLocation.bind(this));
 
   // this.hooks.content.register(this.adjustImages.bind(this));
 
@@ -107,14 +72,8 @@ Paginate.prototype.start = function(){
 
 };
 
-// EPUBJS.Rendition.prototype.createView = function(section) {
-//   var view = new EPUBJS.View(section, this.viewSettings);
 
-
-//   return view;
-// };
-
-Paginate.prototype.applyLayoutMethod = function() {
+PaginatedViewManager.prototype.applyLayoutMethod = function() {
   //var task = new RSVP.defer();
 
   // this.spreads = this.determineSpreads(this.settings.minSpreadWidth);
@@ -123,9 +82,14 @@ Paginate.prototype.applyLayoutMethod = function() {
 
   this.updateLayout();
 
-  // Set the look ahead offset for what is visible
+  this.setLayout(this.layout);
 
-  this.map = new Map(this.layout);
+  this.stage.addStyleRules("iframe", [{"margin-right" : this.layout.gap + "px"}]);
+
+  // Set the look ahead offset for what is visible
+  this.settings.offeset = this.layout.delta;
+
+  this.mapping = new Map(this.layout);
 
   // this.hooks.layout.register(this.layout.format.bind(this));
 
@@ -134,29 +98,28 @@ Paginate.prototype.applyLayoutMethod = function() {
   // return layout;
 };
 
-Paginate.prototype.updateLayout = function() {
+PaginatedViewManager.prototype.updateLayout = function() {
 
   this.spreads = this.determineSpreads(this.settings.minSpreadWidth);
 
   this.layout.calculate(
-    this.stage.width,
-    this.stage.height,
+    this._stageSize.width,
+    this._stageSize.height,
     this.settings.gap,
     this.spreads
   );
 
   this.settings.offset = this.layout.delta;
-
 };
 
-Paginate.prototype.moveTo = function(offset){
+PaginatedViewManager.prototype.moveTo = function(offset){
   var dist = Math.floor(offset.left / this.layout.delta) * this.layout.delta;
   return this.check(0, dist+this.settings.offset).then(function(){
     this.scrollBy(dist, 0);
   }.bind(this));
 };
 
-Paginate.prototype.page = function(pg){
+PaginatedViewManager.prototype.page = function(pg){
 
   // this.currentPage = pg;
   // this.renderer.infinite.scrollTo(this.currentPage * this.formated.pageWidth, 0);
@@ -164,32 +127,28 @@ Paginate.prototype.page = function(pg){
   // return false;
 };
 
-Paginate.prototype.next = function(){
+PaginatedViewManager.prototype.next = function(){
+    this.scrollLeft = this.container.scrollLeft;
 
-  return this.q.enqueue(function(){
-    // console.log(this.container.scrollWidth, this.container.scrollLeft + this.container.offsetWidth + this.layout.delta)
     if(this.container.scrollLeft +
        this.container.offsetWidth +
        this.layout.delta < this.container.scrollWidth) {
       this.scrollBy(this.layout.delta, 0);
     } else {
+      // this.scrollTo(this.container.scrollWidth, 0);
       this.scrollTo(this.container.scrollWidth - this.layout.delta, 0);
     }
-    this.reportLocation();
-    return this.check();
-  });
+    // this.reportLocation();
+    this.check();
 
-  // return this.page(this.currentPage + 1);
 };
 
-Paginate.prototype.prev = function(){
+PaginatedViewManager.prototype.prev = function(){
 
-  return this.q.enqueue(function(){
     this.scrollBy(-this.layout.delta, 0);
-    this.reportLocation();
-    return this.check();
-  });
-  // return this.page(this.currentPage - 1);
+    // this.reportLocation();
+    this.check();
+
 };
 
 // Paginate.prototype.reportLocation = function(){
@@ -199,7 +158,7 @@ Paginate.prototype.prev = function(){
 //   }.bind(this));
 // };
 
-Paginate.prototype.currentLocation = function(){
+PaginatedViewManager.prototype.currentLocation = function(){
   var visible = this.visible();
   var startA, startB, endA, endB;
   var pageLeft, pageRight;
@@ -209,7 +168,7 @@ Paginate.prototype.currentLocation = function(){
     startA = container.left - visible[0].position().left;
     endA = startA + this.layout.spread;
 
-    return this.map.page(visible[0], startA, endA);
+    return this.mapping.page(visible[0], startA, endA);
   }
 
   if(visible.length > 1) {
@@ -222,8 +181,8 @@ Paginate.prototype.currentLocation = function(){
     startB = container.left + this.layout.spread - visible[visible.length-1].position().left;
     endB = startB + this.layout.column;
 
-    pageLeft = this.map.page(visible[0], startA, endA);
-    pageRight = this.map.page(visible[visible.length-1], startB, endB);
+    pageLeft = this.mapping.page(visible[0], startA, endA);
+    pageRight = this.mapping.page(visible[visible.length-1], startB, endB);
 
     return {
       start: pageLeft.start,
@@ -232,17 +191,17 @@ Paginate.prototype.currentLocation = function(){
   }
 };
 
-Paginate.prototype.resize = function(width, height){
+PaginatedViewManager.prototype.resize = function(width, height){
   // Clear the queue
   this.q.clear();
 
-  this.stageSize(width, height);
+  this.bounds = this.stage.bounds(width, height);
 
-  this.updateLayout();
+  // this.updateLayout();
 
-  if(this.location) {
-    this.display(this.location.start);
-  }
+  // if(this.location) {
+  //   this.display(this.location.start);
+  // }
 
   this.trigger("resized", {
     width: this.stage.width,
@@ -251,7 +210,7 @@ Paginate.prototype.resize = function(width, height){
 
 };
 
-Paginate.prototype.onResized = function(e) {
+PaginatedViewManager.prototype.onResized = function(e) {
 
   this.views.clear();
 
@@ -261,24 +220,9 @@ Paginate.prototype.onResized = function(e) {
   }.bind(this), 150);
 };
 
-Paginate.prototype.adjustImages = function(view) {
-
-  view.addStylesheetRules([
-      ["img",
-        ["max-width", (this.layout.spread) + "px"],
-        ["max-height", (this.layout.height) + "px"]
-      ]
-  ]);
-  return new RSVP.Promise(function(resolve, reject){
-    // Wait to apply
-    setTimeout(function() {
-      resolve();
-    }, 1);
-  });
-};
 
 // Paginate.prototype.display = function(what){
 //   return this.display(what);
 // };
 
-module.exports = Paginate;
+module.exports = PaginatedViewManager;
