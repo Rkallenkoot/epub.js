@@ -42,7 +42,7 @@ Locations.prototype.generate = function(chars) {
     }
 
     return this._locations;
-    // console.log(this.precentage(this.book.rendition.location.start), this.precentage(this.book.rendition.location.end));
+    // console.log(this.percentage(this.book.rendition.location.start), this.percentage(this.book.rendition.location.end));
   }.bind(this));
 
 };
@@ -133,11 +133,11 @@ Locations.prototype.locationFromCfi = function(cfi){
   return core.locationOf(cfi, this._locations, this.epubcfi.compare);
 };
 
-Locations.prototype.precentageFromCfi = function(cfi) {
+Locations.prototype.percentageFromCfi = function(cfi) {
   // Find closest cfi
   var loc = this.locationFromCfi(cfi);
   // Get percentage in total
-  return this.precentageFromLocation(loc);
+  return this.percentageFromLocation(loc);
 };
 
 Locations.prototype.percentageFromLocation = function(loc) {
@@ -205,7 +205,7 @@ Locations.prototype.setCurrent = function(curr){
   }
 
   this.trigger("changed", {
-    percentage: this.precentageFromLocation(loc)
+    percentage: this.percentageFromLocation(loc)
   });
 };
 
