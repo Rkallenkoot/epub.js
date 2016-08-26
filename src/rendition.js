@@ -21,7 +21,8 @@ function Rendition(book, options) {
 		flow: null,
 		layout: null,
 		spread: null,
-		minSpreadWidth: 800, //-- overridden by spread: none (never) / both (always)
+		minSpreadWidth: 800, //-- overridden by spread: none (never) / both (always),
+		useBase64: true
 	});
 
 	core.extend(this.settings, options);
@@ -60,7 +61,7 @@ function Rendition(book, options) {
 	this.q.enqueue(this.start);
 
 	// TODO: move this somewhere else
-	if(this.book.archive) {
+	if(this.book.unarchived) {
 		this.replacements();
 	}
 
@@ -125,6 +126,9 @@ Rendition.prototype.start = function(){
 
 	// Listen for resizing
 	this.manager.on("resized", this.onResized.bind(this));
+
+	// Listen for scroll changes
+	this.manager.on("scroll", this.reportLocation.bind(this));
 
 
 	this.on('displayed', this.reportLocation.bind(this));
@@ -356,8 +360,17 @@ Rendition.prototype.spread = function(spread, min){
 
 Rendition.prototype.reportLocation = function(){
   return this.q.enqueue(function(){
-    this.location = this.manager.currentLocation();
-    this.trigger("locationChanged", this.location);
+    var location = this.manager.currentLocation();
+		if (location.then && typeof location.then === 'function') {
+			location.then(function(result) {
+				this.location = result;
+		    this.trigger("locationChanged", this.location);
+			}.bind(this));
+		} else {
+			this.location = location;
+	    this.trigger("locationChanged", this.location);
+		}
+
   }.bind(this));
 };
 
@@ -436,23 +449,27 @@ Rendition.prototype.replacements = function(){
 	    map(function(url) {
 				var absolute = URI(url).absoluteTo(this.book.baseUrl).toString();
 				// Full url from archive base
-	      return this.book.archive.createUrl(absolute);
+	      return this.book.unarchived.createUrl(absolute, {"base64": this.settings.useBase64});
 	    }.bind(this));
 
 		// After all the urls are created
 	  return RSVP.all(processing).
 	    then(function(replacementUrls) {
-
+				var replaced = [];
 				// Replace Asset Urls in the text of all css files
 				cssUrls.forEach(function(href) {
-					this.replaceCss(href, urls, replacementUrls);
+					replaced.push(this.replaceCss(href, urls, replacementUrls));
 		    }.bind(this));
 
-				// Replace Asset Urls in chapters
-				// by registering a hook after the sections contents has been serialized
-	      this.book.spine.hooks.serialize.register(function(output, section) {
-					this.replaceAssets(section, urls, replacementUrls);
-	      }.bind(this));
+				return RSVP.all(replaced).then(function () {
+					// Replace Asset Urls in chapters
+					// by registering a hook after the sections contents has been serialized
+		      this.book.spine.hooks.serialize.register(function(output, section) {
+						this.replaceAssets(section, urls, replacementUrls);
+		      }.bind(this));
+
+				}.bind(this));
+
 
 	    }.bind(this)).catch(function(reason){
 	      console.error(reason);
@@ -468,7 +485,7 @@ Rendition.prototype.replaceCss = function(href, urls, replacementUrls){
 		var fileUri = URI(href);
 		var absolute = fileUri.absoluteTo(this.book.baseUrl).toString();
 		// Get the text of the css file from the archive
-		var text = this.book.archive.getText(absolute);
+		var textResponse = this.book.unarchived.getText(absolute);
 		// Get asset links relative to css file
 		var relUrls = urls.
 			map(function(assetHref) {
@@ -477,17 +494,25 @@ Rendition.prototype.replaceCss = function(href, urls, replacementUrls){
 				return relative;
 			}.bind(this));
 
-		// Replacements in the css text
-		text = replace.substitute(text, relUrls, replacementUrls);
+		return textResponse.then(function (text) {
+			// Replacements in the css text
+			text = replace.substitute(text, relUrls, replacementUrls);
 
-		// Get the new url
-		newUrl = core.createBlobUrl(text, 'text/css');
+			// Get the new url
+			if (this.settings.useBase64) {
+				newUrl = core.createBase64Url(text, 'text/css');
+			} else {
+				newUrl = core.createBlobUrl(text, 'text/css');
+			}
 
-		// switch the url in the replacementUrls
-		indexInUrls = urls.indexOf(href);
-		if (indexInUrls > -1) {
-			replacementUrls[indexInUrls] = newUrl;
-		}
+			// switch the url in the replacementUrls
+			indexInUrls = urls.indexOf(href);
+			if (indexInUrls > -1) {
+				replacementUrls[indexInUrls] = newUrl;
+			}
+
+		}.bind(this));
+
 };
 
 Rendition.prototype.replaceAssets = function(section, urls, replacementUrls){

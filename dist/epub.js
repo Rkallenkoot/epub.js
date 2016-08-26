@@ -172,8 +172,119 @@ module.exports = {
 }
 
 },{}],2:[function(require,module,exports){
+'use strict'
+
+exports.toByteArray = toByteArray
+exports.fromByteArray = fromByteArray
+
+var lookup = []
+var revLookup = []
+var Arr = typeof Uint8Array !== 'undefined' ? Uint8Array : Array
+
+function init () {
+  var code = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+  for (var i = 0, len = code.length; i < len; ++i) {
+    lookup[i] = code[i]
+    revLookup[code.charCodeAt(i)] = i
+  }
+
+  revLookup['-'.charCodeAt(0)] = 62
+  revLookup['_'.charCodeAt(0)] = 63
+}
+
+init()
+
+function toByteArray (b64) {
+  var i, j, l, tmp, placeHolders, arr
+  var len = b64.length
+
+  if (len % 4 > 0) {
+    throw new Error('Invalid string. Length must be a multiple of 4')
+  }
+
+  // the number of equal signs (place holders)
+  // if there are two placeholders, than the two characters before it
+  // represent one byte
+  // if there is only one, then the three characters before it represent 2 bytes
+  // this is just a cheap hack to not do indexOf twice
+  placeHolders = b64[len - 2] === '=' ? 2 : b64[len - 1] === '=' ? 1 : 0
+
+  // base64 is 4/3 + up to two characters of the original data
+  arr = new Arr(len * 3 / 4 - placeHolders)
+
+  // if there are placeholders, only get up to the last complete 4 chars
+  l = placeHolders > 0 ? len - 4 : len
+
+  var L = 0
+
+  for (i = 0, j = 0; i < l; i += 4, j += 3) {
+    tmp = (revLookup[b64.charCodeAt(i)] << 18) | (revLookup[b64.charCodeAt(i + 1)] << 12) | (revLookup[b64.charCodeAt(i + 2)] << 6) | revLookup[b64.charCodeAt(i + 3)]
+    arr[L++] = (tmp >> 16) & 0xFF
+    arr[L++] = (tmp >> 8) & 0xFF
+    arr[L++] = tmp & 0xFF
+  }
+
+  if (placeHolders === 2) {
+    tmp = (revLookup[b64.charCodeAt(i)] << 2) | (revLookup[b64.charCodeAt(i + 1)] >> 4)
+    arr[L++] = tmp & 0xFF
+  } else if (placeHolders === 1) {
+    tmp = (revLookup[b64.charCodeAt(i)] << 10) | (revLookup[b64.charCodeAt(i + 1)] << 4) | (revLookup[b64.charCodeAt(i + 2)] >> 2)
+    arr[L++] = (tmp >> 8) & 0xFF
+    arr[L++] = tmp & 0xFF
+  }
+
+  return arr
+}
+
+function tripletToBase64 (num) {
+  return lookup[num >> 18 & 0x3F] + lookup[num >> 12 & 0x3F] + lookup[num >> 6 & 0x3F] + lookup[num & 0x3F]
+}
+
+function encodeChunk (uint8, start, end) {
+  var tmp
+  var output = []
+  for (var i = start; i < end; i += 3) {
+    tmp = (uint8[i] << 16) + (uint8[i + 1] << 8) + (uint8[i + 2])
+    output.push(tripletToBase64(tmp))
+  }
+  return output.join('')
+}
+
+function fromByteArray (uint8) {
+  var tmp
+  var len = uint8.length
+  var extraBytes = len % 3 // if we have 1 byte left, pad 2 bytes
+  var output = ''
+  var parts = []
+  var maxChunkLength = 16383 // must be multiple of 3
+
+  // go through the array every three bytes, we'll deal with trailing stuff later
+  for (var i = 0, len2 = len - extraBytes; i < len2; i += maxChunkLength) {
+    parts.push(encodeChunk(uint8, i, (i + maxChunkLength) > len2 ? len2 : (i + maxChunkLength)))
+  }
+
+  // pad the end with zeros, but make sure to not forget the extra bytes
+  if (extraBytes === 1) {
+    tmp = uint8[len - 1]
+    output += lookup[tmp >> 2]
+    output += lookup[(tmp << 4) & 0x3F]
+    output += '=='
+  } else if (extraBytes === 2) {
+    tmp = (uint8[len - 2] << 8) + (uint8[len - 1])
+    output += lookup[tmp >> 10]
+    output += lookup[(tmp >> 4) & 0x3F]
+    output += lookup[(tmp << 2) & 0x3F]
+    output += '='
+  }
+
+  parts.push(output)
+
+  return parts.join('')
+}
 
 },{}],3:[function(require,module,exports){
+
+},{}],4:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -269,7 +380,7 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 (function (process,global){
 /*!
  * @overview RSVP - a tiny implementation of Promises/A+.
@@ -1871,7 +1982,7 @@ process.umask = function() { return 0; };
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 
-},{"_process":3}],5:[function(require,module,exports){
+},{"_process":4}],6:[function(require,module,exports){
 /*!
  * URI.js - Mutating URLs
  * Second Level Domain (SLD) Support
@@ -2113,7 +2224,7 @@ process.umask = function() { return 0; };
   return SLD;
 }));
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 /*!
  * URI.js - Mutating URLs
  *
@@ -4325,7 +4436,7 @@ process.umask = function() { return 0; };
   return URI;
 }));
 
-},{"./IPv6":2,"./SecondLevelDomains":5,"./punycode":2}],7:[function(require,module,exports){
+},{"./IPv6":3,"./SecondLevelDomains":6,"./punycode":3}],8:[function(require,module,exports){
 function DOMParser(options){
 	this.options = options ||{locator:{}};
 	
@@ -4576,7 +4687,7 @@ if(typeof require == 'function'){
 	exports.DOMParser = DOMParser;
 }
 
-},{"./dom":8,"./sax":9}],8:[function(require,module,exports){
+},{"./dom":9,"./sax":10}],9:[function(require,module,exports){
 /*
  * DOM Level 2
  * Object DOMException
@@ -5725,7 +5836,7 @@ if(typeof require == 'function'){
 	exports.XMLSerializer = XMLSerializer;
 }
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 //[4]   	NameStartChar	   ::=   	":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
 //[4a]   	NameChar	   ::=   	NameStartChar | "-" | "." | [0-9] | #xB7 | [#x0300-#x036F] | [#x203F-#x2040]
 //[5]   	Name	   ::=   	NameStartChar (NameChar)*
@@ -6313,7 +6424,7 @@ if(typeof require == 'function'){
 }
 
 
-},{}],10:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 var RSVP = require('rsvp');
 var URI = require('urijs');
 var core = require('./core');
@@ -6376,7 +6487,7 @@ function Book(_url, options){
   }
 };
 
-Book.prototype.open = function(_url){
+Book.prototype.open = function(_url, options){
   var uri;
   var parse = new Parser();
   var epubPackage;
@@ -6386,6 +6497,7 @@ Book.prototype.open = function(_url){
   var location;
   var absoluteUri;
   var isArrayBuffer = false;
+  var isBase64 = options && options.base64;
 
   if(!_url) {
     this.opening.resolve(this);
@@ -6398,7 +6510,7 @@ Book.prototype.open = function(_url){
   // } else {
   //   uri = core.uri(_url);
   // }
-  if (_url instanceof ArrayBuffer) {
+  if (_url instanceof ArrayBuffer || isBase64) {
 		isArrayBuffer = true;
     this.url = '/';
 	} else {
@@ -6431,12 +6543,12 @@ Book.prototype.open = function(_url){
 
     epubPackage = this.request(this.packageUrl);
 
-  } else if(isArrayBuffer || this.isArchivedUrl(uri)) {
+  } else if(isArrayBuffer || isBase64 || this.isArchivedUrl(uri)) {
     // Book is archived
     this.url = '/';
     this.containerUrl = URI(containerPath).absoluteTo(this.url).toString();
 
-    epubContainer = this.unarchive(_url).
+    epubContainer = this.unarchive(_url, isBase64).
       then(function() {
         return this.request(this.containerUrl);
       }.bind(this));
@@ -6554,8 +6666,8 @@ Book.prototype.renderTo = function(element, options) {
 
 Book.prototype.requestMethod = function(_url) {
   // Switch request methods
-  if(this.archive) {
-    return this.archive.request(_url);
+  if(this.unarchived) {
+    return this.unarchived.request(_url);
   } else {
     return request(_url, null, this.requestCredentials, this.requestHeaders);
   }
@@ -6570,9 +6682,9 @@ Book.prototype.setRequestHeaders = function(_headers) {
   this.requestHeaders = _headers;
 };
 
-Book.prototype.unarchive = function(bookUrl){
-	this.archive = new Unarchive();
-	return this.archive.open(bookUrl);
+Book.prototype.unarchive = function(bookUrl, isBase64){
+	this.unarchived = new Unarchive();
+	return this.unarchived.open(bookUrl, isBase64);
 };
 
 //-- Checks if url has a .epub or .zip extension, or is ArrayBuffer (of zip/epub)
@@ -6604,8 +6716,8 @@ Book.prototype.isArchivedUrl = function(bookUrl){
 Book.prototype.coverUrl = function(){
 	var retrieved = this.loaded.cover.
 		then(function(url) {
-			if(this.archive) {
-				return this.archive.createUrl(this.cover);
+			if(this.unarchived) {
+				return this.unarchived.createUrl(this.cover);
 			}else{
 				return this.cover;
 			}
@@ -6644,7 +6756,7 @@ RSVP.on('rejected', function(event){
   console.error(event.detail.message, event.detail.stack);
 });
 
-},{"./core":12,"./epubcfi":13,"./locations":16,"./navigation":20,"./parser":21,"./rendition":23,"./request":25,"./spine":27,"./unarchive":29,"rsvp":4,"urijs":6}],11:[function(require,module,exports){
+},{"./core":13,"./epubcfi":14,"./locations":17,"./navigation":21,"./parser":22,"./rendition":24,"./request":26,"./spine":28,"./unarchive":30,"rsvp":5,"urijs":7}],12:[function(require,module,exports){
 var RSVP = require('rsvp');
 var core = require('./core');
 var EpubCFI = require('./epubcfi');
@@ -6657,7 +6769,7 @@ function Contents(doc, content, cfiBase) {
 
   this.document = doc;
   this.documentElement =  this.document.documentElement;
-  this.content = content;
+  this.content = content || this.document.body;
   this.window = this.document.defaultView;
   // Dom events to listen for
   this.listenedEvents = ["keydown", "keyup", "keypressed", "mouseup", "mousedown", "click", "touchend", "touchstart"];
@@ -6673,7 +6785,8 @@ function Contents(doc, content, cfiBase) {
 };
 
 Contents.prototype.width = function(w) {
-  var frame = this.content || this.documentElement;
+  // var frame = this.documentElement;
+  var frame = this.content;
 
   if (w && core.isNumber(w)) {
     w = w + "px";
@@ -6681,6 +6794,7 @@ Contents.prototype.width = function(w) {
 
   if (w) {
     frame.style.width = w;
+    // this.content.style.width = w;
   }
 
   return this.window.getComputedStyle(frame)['width'];
@@ -6689,7 +6803,8 @@ Contents.prototype.width = function(w) {
 };
 
 Contents.prototype.height = function(h) {
-  var frame = this.content || this.documentElement;
+  // var frame = this.documentElement;
+  var frame = this.content;
 
   if (h && core.isNumber(h)) {
     h = h + "px";
@@ -6697,6 +6812,7 @@ Contents.prototype.height = function(h) {
 
   if (h) {
     frame.style.height = h;
+    // this.content.style.height = h;
   }
 
   return this.window.getComputedStyle(frame)['height'];
@@ -6782,6 +6898,24 @@ Contents.prototype.overflow = function(overflow) {
   }
 
   return this.window.getComputedStyle(this.documentElement)['overflow'];
+};
+
+Contents.prototype.overflowX = function(overflow) {
+
+  if (overflow) {
+    this.documentElement.style.overflowX = overflow;
+  }
+
+  return this.window.getComputedStyle(this.documentElement)['overflowX'];
+};
+
+Contents.prototype.overflowY = function(overflow) {
+
+  if (overflow) {
+    this.documentElement.style.overflowY = overflow;
+  }
+
+  return this.window.getComputedStyle(this.documentElement)['overflowY'];
 };
 
 Contents.prototype.css = function(property, value) {
@@ -6879,7 +7013,7 @@ Contents.prototype.listeners = function() {
 
   this.mediaQueryListeners();
 
-  this.fontLoadListeners();
+  // this.fontLoadListeners();
 
   this.addEventListeners();
 
@@ -6977,7 +7111,7 @@ Contents.prototype.imageLoadListeners = function(target) {
 };
 
 Contents.prototype.fontLoadListeners = function(target) {
-  if (!this.document.fonts) {
+  if (!this.document || !this.document.fonts) {
     return;
   }
 
@@ -7196,9 +7330,9 @@ Contents.prototype.size = function(width, height){
     this.height(height);
   }
 
-  if (width >= 0 && height >= 0) {
-    this.overflow("hidden");
-  }
+  // if (width >= 0 && height >= 0) {
+  //   this.overflow("hidden");
+  // }
 
 };
 
@@ -7208,8 +7342,16 @@ Contents.prototype.columns = function(width, height, columnWidth, gap){
   var COLUMN_WIDTH = core.prefixed('columnWidth');
   var COLUMN_FILL = core.prefixed('columnFill');
 
-  this.size(width, height);
+  this.width(width);
+  this.height(height);
+
+  // Deal with Mobile trying to scale to viewport
+  this.viewport({ width: width, height: height, scale: 1.0 });
+
+  // this.overflowY("hidden");
+  this.css("overflowY", "hidden");
   this.css("margin", "0");
+  this.css("boxSizing", "border-box");
 
   this.css(COLUMN_AXIS, "horizontal");
   this.css(COLUMN_FILL, "auto");
@@ -7252,7 +7394,11 @@ Contents.prototype.fit = function(width, height){
   this.css("backgroundColor", "transparent");
 };
 
+Contents.prototype.mapPage = function(cfiBase, start, end) {
+  var mapping = new Mapping();
 
+  return mapping.page(this, cfiBase, start, end);
+};
 
 Contents.prototype.destroy = function() {
   // Stop observing
@@ -7268,8 +7414,9 @@ RSVP.EventTarget.mixin(Contents.prototype);
 
 module.exports = Contents;
 
-},{"./core":12,"./epubcfi":13,"./mapping":19,"rsvp":4}],12:[function(require,module,exports){
+},{"./core":13,"./epubcfi":14,"./mapping":20,"rsvp":5}],13:[function(require,module,exports){
 var RSVP = require('rsvp');
+var base64 = require('base64-js');
 
 var requestAnimationFrame = (typeof window != 'undefined') ? (window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame) : false;
 /*
@@ -7668,14 +7815,37 @@ function isXml(ext) {
   return ['xml', 'opf', 'ncx'].indexOf(ext) > -1;
 }
 
-function createBlobUrl(content, mime){
-	var _URL = window.URL || window.webkitURL || window.mozURL;
-	var tempUrl;
+function createBlob(content, mime){
 	var blob = new Blob([content], {type : mime });
+
+  return blob;
+};
+
+function createBlobUrl(content, mime){
+  var _URL = window.URL || window.webkitURL || window.mozURL;
+	var tempUrl;
+	var blob = this.createBlob(content, mime);
 
   tempUrl = _URL.createObjectURL(blob);
 
   return tempUrl;
+};
+
+function createBase64Url(content, mime){
+  var string;
+  var data;
+  var datauri;
+
+  if (typeof(content) !== "string") {
+    // Only handles strings
+    return;
+  }
+
+  data = btoa(content);
+
+  datauri = "data:" + mime + ";base64," + data;
+
+  return datauri;
 };
 
 function type(obj){
@@ -7744,6 +7914,14 @@ function qsp(el, sel, props) {
   }
 }
 
+function blob2base64(blob, cb) {
+  var reader = new FileReader();
+  reader.readAsDataURL(blob);
+  reader.onloadend = function() {
+    cb(reader.result);
+  }
+}
+
 module.exports = {
   // 'uri': uri,
   // 'folder': folder,
@@ -7767,15 +7945,18 @@ module.exports = {
   'cleanStringForXpath': cleanStringForXpath,
   'indexOfTextNode': indexOfTextNode,
   'isXml': isXml,
+  'createBlob': createBlob,
   'createBlobUrl': createBlobUrl,
   'type': type,
   'parse' : parse,
   'qs' : qs,
   'qsa' : qsa,
-  'qsp' : qsp
+  'qsp' : qsp,
+  'blob2base64' : blob2base64,
+  'createBase64Url': createBase64Url
 };
 
-},{"rsvp":4,"xmldom":7}],13:[function(require,module,exports){
+},{"base64-js":2,"rsvp":5,"xmldom":8}],14:[function(require,module,exports){
 var URI = require('urijs');
 var core = require('./core');
 
@@ -8711,7 +8892,7 @@ EpubCFI.prototype.generateChapterComponent = function(_spineNodeIndex, _pos, id)
 
 module.exports = EpubCFI;
 
-},{"./core":12,"urijs":6}],14:[function(require,module,exports){
+},{"./core":13,"urijs":7}],15:[function(require,module,exports){
 var RSVP = require('rsvp');
 
 //-- Hooks allow for injecting functions that must all complete in order before finishing
@@ -8772,7 +8953,7 @@ Hook.prototype.clear = function(){
 
 module.exports = Hook;
 
-},{"rsvp":4}],15:[function(require,module,exports){
+},{"rsvp":5}],16:[function(require,module,exports){
 var core = require('./core');
 var RSVP = require('rsvp');
 
@@ -8883,7 +9064,7 @@ Layout.prototype.count = function(totalWidth) {
 
 module.exports = Layout;
 
-},{"./core":12,"rsvp":4}],16:[function(require,module,exports){
+},{"./core":13,"rsvp":5}],17:[function(require,module,exports){
 var core = require('./core');
 var Queue = require('./queue');
 var EpubCFI = require('./epubcfi');
@@ -9108,7 +9289,7 @@ RSVP.EventTarget.mixin(Locations.prototype);
 
 module.exports = Locations;
 
-},{"./core":12,"./epubcfi":13,"./queue":22,"rsvp":4}],17:[function(require,module,exports){
+},{"./core":13,"./epubcfi":14,"./queue":23,"rsvp":5}],18:[function(require,module,exports){
 var RSVP = require('rsvp');
 var core = require('../core');
 var SingleViewManager = require('./single');
@@ -9604,13 +9785,13 @@ ContinuousViewManager.prototype.scrolledLocation = function(){
   var container = this.container.getBoundingClientRect();
 
   if(visible.length === 1) {
-    return this.mapping.page(visible[0]);
+    return this.mapping.page(visible[0].contents, visible[0].section.cfiBase);
   }
 
   if(visible.length > 1) {
 
-    startPage = this.mapping.page(visible[0]);
-    endPage = this.mapping.page(visible[visible.length-1]);
+    startPage = this.mapping.page(visible[0].contents, visible[0].section.cfiBase);
+    endPage = this.mapping.page(visible[visible.length-1].contents, visible[visible.length-1].section.cfiBase);
 
     return {
       start: startPage.start,
@@ -9630,7 +9811,7 @@ ContinuousViewManager.prototype.paginatedLocation = function(){
     startA = container.left - visible[0].position().left;
     endA = startA + this.layout.spreadWidth;
 
-    return this.mapping.page(visible[0], startA, endA);
+    return this.mapping.page(visible[0].contents, visible[0].section.cfiBase, startA, endA);
   }
 
   if(visible.length > 1) {
@@ -9643,8 +9824,8 @@ ContinuousViewManager.prototype.paginatedLocation = function(){
     startB = container.left + this.layout.spreadWidth - visible[visible.length-1].position().left;
     endB = startB + this.layout.columnWidth;
 
-    pageLeft = this.mapping.page(visible[0], startA, endA);
-    pageRight = this.mapping.page(visible[visible.length-1], startB, endB);
+    pageLeft = this.mapping.page(visible[0].contents, visible[0].section.cfiBase, startA, endA);
+    pageRight = this.mapping.page(visible[visible.length-1].contents, visible[visible.length-1].section.cfiBase, startB, endB);
 
     return {
       start: pageLeft.start,
@@ -9774,7 +9955,7 @@ ContinuousViewManager.prototype.updateFlow = function(flow){
 };
 module.exports = ContinuousViewManager;
 
-},{"../core":12,"./single":18,"rsvp":4}],18:[function(require,module,exports){
+},{"../core":13,"./single":19,"rsvp":5}],19:[function(require,module,exports){
 var RSVP = require('rsvp');
 var core = require('../core');
 var Stage = require('../stage');
@@ -10190,27 +10371,28 @@ SingleViewManager.prototype.updateFlow = function(flow){
 
  module.exports = SingleViewManager;
 
-},{"../core":12,"../epubcfi":13,"../mapping":19,"../queue":22,"../stage":28,"../views":30,"rsvp":4}],19:[function(require,module,exports){
+},{"../core":13,"../epubcfi":14,"../mapping":20,"../queue":23,"../stage":29,"../views":31,"rsvp":5}],20:[function(require,module,exports){
+var EpubCFI = require('./epubcfi');
+
 function Mapping(layout){
   this.layout = layout;
 };
 
 Mapping.prototype.section = function(view) {
   var ranges = this.findRanges(view);
-  var map = this.rangeListToCfiList(view, ranges);
+  var map = this.rangeListToCfiList(view.section.cfiBase, ranges);
 
   return map;
 };
 
-Mapping.prototype.page = function(view, start, end) {
-  var contents = view.contents;
+Mapping.prototype.page = function(contents, cfiBase, start, end) {
   var root = contents && contents.document ? contents.document.body : false;
 
   if (!root) {
     return;
   }
 
-  return this.rangePairToCfiPair(view.section, {
+  return this.rangePairToCfiPair(cfiBase, {
     start: this.findStart(root, start, end),
     end: this.findEnd(root, start, end)
   });
@@ -10452,7 +10634,7 @@ Mapping.prototype.splitTextNodeIntoRanges = function(node, _splitter){
 
 
 
-Mapping.prototype.rangePairToCfiPair = function(section, rangePair){
+Mapping.prototype.rangePairToCfiPair = function(cfiBase, rangePair){
 
   var startRange = rangePair.start;
   var endRange = rangePair.end;
@@ -10460,8 +10642,10 @@ Mapping.prototype.rangePairToCfiPair = function(section, rangePair){
   startRange.collapse(true);
   endRange.collapse(true);
 
-  startCfi = section.cfiFromRange(startRange);
-  endCfi = section.cfiFromRange(endRange);
+  // startCfi = section.cfiFromRange(startRange);
+  // endCfi = section.cfiFromRange(endRange);
+  startCfi = new EpubCFI(startRange, cfiBase).toString();
+  endCfi = new EpubCFI(endRange, cfiBase).toString();
 
   return {
     start: startCfi,
@@ -10470,12 +10654,12 @@ Mapping.prototype.rangePairToCfiPair = function(section, rangePair){
 
 };
 
-Mapping.prototype.rangeListToCfiList = function(view, columns){
+Mapping.prototype.rangeListToCfiList = function(cfiBase, columns){
   var map = [];
   var rangePair, cifPair;
 
   for (var i = 0; i < columns.length; i++) {
-    cifPair = this.rangePairToCfiPair(view.section, columns[i]);
+    cifPair = this.rangePairToCfiPair(cfiBase, columns[i]);
 
     map.push(cifPair);
 
@@ -10486,7 +10670,7 @@ Mapping.prototype.rangeListToCfiList = function(view, columns){
 
 module.exports = Mapping;
 
-},{}],20:[function(require,module,exports){
+},{"./epubcfi":14}],21:[function(require,module,exports){
 var core = require('./core');
 var Parser = require('./parser');
 var RSVP = require('rsvp');
@@ -10590,7 +10774,7 @@ Navigation.prototype.get = function(target) {
 
 module.exports = Navigation;
 
-},{"./core":12,"./parser":21,"./request":25,"rsvp":4,"urijs":6}],21:[function(require,module,exports){
+},{"./core":13,"./parser":22,"./request":26,"rsvp":5,"urijs":7}],22:[function(require,module,exports){
 var URI = require('urijs');
 var core = require('./core');
 var EpubCFI = require('./epubcfi');
@@ -11083,7 +11267,7 @@ Parser.prototype.pageListItem = function(item, spineIndexByURL, bookSpine){
 
 module.exports = Parser;
 
-},{"./core":12,"./epubcfi":13,"urijs":6}],22:[function(require,module,exports){
+},{"./core":13,"./epubcfi":14,"urijs":7}],23:[function(require,module,exports){
 var RSVP = require('rsvp');
 var core = require('./core');
 
@@ -11278,7 +11462,7 @@ function Task(task, args, context){
 
 module.exports = Queue;
 
-},{"./core":12,"rsvp":4}],23:[function(require,module,exports){
+},{"./core":13,"rsvp":5}],24:[function(require,module,exports){
 var RSVP = require('rsvp');
 var URI = require('urijs');
 var core = require('./core');
@@ -11302,7 +11486,8 @@ function Rendition(book, options) {
 		flow: null,
 		layout: null,
 		spread: null,
-		minSpreadWidth: 800, //-- overridden by spread: none (never) / both (always)
+		minSpreadWidth: 800, //-- overridden by spread: none (never) / both (always),
+		useBase64: true
 	});
 
 	core.extend(this.settings, options);
@@ -11341,7 +11526,7 @@ function Rendition(book, options) {
 	this.q.enqueue(this.start);
 
 	// TODO: move this somewhere else
-	if(this.book.archive) {
+	if(this.book.unarchived) {
 		this.replacements();
 	}
 
@@ -11406,6 +11591,9 @@ Rendition.prototype.start = function(){
 
 	// Listen for resizing
 	this.manager.on("resized", this.onResized.bind(this));
+
+	// Listen for scroll changes
+	this.manager.on("scroll", this.reportLocation.bind(this));
 
 
 	this.on('displayed', this.reportLocation.bind(this));
@@ -11637,8 +11825,17 @@ Rendition.prototype.spread = function(spread, min){
 
 Rendition.prototype.reportLocation = function(){
   return this.q.enqueue(function(){
-    this.location = this.manager.currentLocation();
-    this.trigger("locationChanged", this.location);
+    var location = this.manager.currentLocation();
+		if (location.then && typeof location.then === 'function') {
+			location.then(function(result) {
+				this.location = result;
+		    this.trigger("locationChanged", this.location);
+			}.bind(this));
+		} else {
+			this.location = location;
+	    this.trigger("locationChanged", this.location);
+		}
+
   }.bind(this));
 };
 
@@ -11717,23 +11914,27 @@ Rendition.prototype.replacements = function(){
 	    map(function(url) {
 				var absolute = URI(url).absoluteTo(this.book.baseUrl).toString();
 				// Full url from archive base
-	      return this.book.archive.createUrl(absolute);
+	      return this.book.unarchived.createUrl(absolute, {"base64": this.settings.useBase64});
 	    }.bind(this));
 
 		// After all the urls are created
 	  return RSVP.all(processing).
 	    then(function(replacementUrls) {
-
+				var replaced = [];
 				// Replace Asset Urls in the text of all css files
 				cssUrls.forEach(function(href) {
-					this.replaceCss(href, urls, replacementUrls);
+					replaced.push(this.replaceCss(href, urls, replacementUrls));
 		    }.bind(this));
 
-				// Replace Asset Urls in chapters
-				// by registering a hook after the sections contents has been serialized
-	      this.book.spine.hooks.serialize.register(function(output, section) {
-					this.replaceAssets(section, urls, replacementUrls);
-	      }.bind(this));
+				return RSVP.all(replaced).then(function () {
+					// Replace Asset Urls in chapters
+					// by registering a hook after the sections contents has been serialized
+		      this.book.spine.hooks.serialize.register(function(output, section) {
+						this.replaceAssets(section, urls, replacementUrls);
+		      }.bind(this));
+
+				}.bind(this));
+
 
 	    }.bind(this)).catch(function(reason){
 	      console.error(reason);
@@ -11749,7 +11950,7 @@ Rendition.prototype.replaceCss = function(href, urls, replacementUrls){
 		var fileUri = URI(href);
 		var absolute = fileUri.absoluteTo(this.book.baseUrl).toString();
 		// Get the text of the css file from the archive
-		var text = this.book.archive.getText(absolute);
+		var textResponse = this.book.unarchived.getText(absolute);
 		// Get asset links relative to css file
 		var relUrls = urls.
 			map(function(assetHref) {
@@ -11758,17 +11959,25 @@ Rendition.prototype.replaceCss = function(href, urls, replacementUrls){
 				return relative;
 			}.bind(this));
 
-		// Replacements in the css text
-		text = replace.substitute(text, relUrls, replacementUrls);
+		return textResponse.then(function (text) {
+			// Replacements in the css text
+			text = replace.substitute(text, relUrls, replacementUrls);
 
-		// Get the new url
-		newUrl = core.createBlobUrl(text, 'text/css');
+			// Get the new url
+			if (this.settings.useBase64) {
+				newUrl = core.createBase64Url(text, 'text/css');
+			} else {
+				newUrl = core.createBlobUrl(text, 'text/css');
+			}
 
-		// switch the url in the replacementUrls
-		indexInUrls = urls.indexOf(href);
-		if (indexInUrls > -1) {
-			replacementUrls[indexInUrls] = newUrl;
-		}
+			// switch the url in the replacementUrls
+			indexInUrls = urls.indexOf(href);
+			if (indexInUrls > -1) {
+				replacementUrls[indexInUrls] = newUrl;
+			}
+
+		}.bind(this));
+
 };
 
 Rendition.prototype.replaceAssets = function(section, urls, replacementUrls){
@@ -11818,7 +12027,7 @@ RSVP.EventTarget.mixin(Rendition.prototype);
 
 module.exports = Rendition;
 
-},{"./core":12,"./epubcfi":13,"./hook":14,"./layout":15,"./mapping":19,"./queue":22,"./replacements":24,"./views":30,"rsvp":4,"urijs":6}],24:[function(require,module,exports){
+},{"./core":13,"./epubcfi":14,"./hook":15,"./layout":16,"./mapping":20,"./queue":23,"./replacements":25,"./views":31,"rsvp":5,"urijs":7}],25:[function(require,module,exports){
 var URI = require('urijs');
 var core = require('./core');
 
@@ -11934,7 +12143,7 @@ module.exports = {
   'substitute': substitute
 };
 
-},{"./core":12,"urijs":6}],25:[function(require,module,exports){
+},{"./core":13,"urijs":7}],26:[function(require,module,exports){
 var RSVP = require('rsvp');
 var URI = require('urijs');
 var core = require('./core');
@@ -12076,7 +12285,7 @@ function request(url, type, withCredentials, headers) {
 
 module.exports = request;
 
-},{"./core":12,"rsvp":4,"urijs":6}],26:[function(require,module,exports){
+},{"./core":13,"rsvp":5,"urijs":7}],27:[function(require,module,exports){
 var RSVP = require('rsvp');
 var URI = require('urijs');
 var core = require('./core');
@@ -12234,7 +12443,7 @@ Section.prototype.cfiFromElement = function(el) {
 
 module.exports = Section;
 
-},{"./core":12,"./epubcfi":13,"./hook":14,"./request":25,"rsvp":4,"urijs":6,"xmldom":7}],27:[function(require,module,exports){
+},{"./core":13,"./epubcfi":14,"./hook":15,"./request":26,"rsvp":5,"urijs":7,"xmldom":8}],28:[function(require,module,exports){
 var RSVP = require('rsvp');
 var core = require('./core');
 var EpubCFI = require('./epubcfi');
@@ -12372,7 +12581,7 @@ Spine.prototype.each = function() {
 
 module.exports = Spine;
 
-},{"./core":12,"./epubcfi":13,"./hook":14,"./replacements":24,"./section":26,"rsvp":4}],28:[function(require,module,exports){
+},{"./core":13,"./epubcfi":14,"./hook":15,"./replacements":25,"./section":27,"rsvp":5}],29:[function(require,module,exports){
 var core = require('./core');
 
 function Stage(_options) {
@@ -12598,7 +12807,7 @@ Stage.prototype.addStyleRules = function(selector, rulesArray){
 
 module.exports = Stage;
 
-},{"./core":12}],29:[function(require,module,exports){
+},{"./core":13}],30:[function(require,module,exports){
 var RSVP = require('rsvp');
 var URI = require('urijs');
 var core = require('./core');
@@ -12625,17 +12834,13 @@ Unarchive.prototype.checkRequirements = function(callback){
   }
 };
 
-Unarchive.prototype.open = function(zipUrl){
-	if (zipUrl instanceof ArrayBuffer) {
-    return new RSVP.Promise(function(resolve, reject) {
-      this.zip = new JSZip(zipUrl);
-      resolve(this.zip);
-    });
+Unarchive.prototype.open = function(zipUrl, isBase64){
+	if (zipUrl instanceof ArrayBuffer || isBase64) {
+    return this.zip.loadAsync(zipUrl, {"base64": isBase64});
 	} else {
 		return request(zipUrl, "binary")
       .then(function(data){
-			  this.zip = new JSZip(data);
-        return this.zip;
+        return this.zip.loadAsync(data);
 		  }.bind(this));
 	}
 };
@@ -12658,8 +12863,10 @@ Unarchive.prototype.request = function(url, type){
   }
 
   if (response) {
-    r = this.handleResponse(response, type);
-    deferred.resolve(r);
+    response.then(function (r) {
+      result = this.handleResponse(r, type);
+      deferred.resolve(result);
+    }.bind(this));
   } else {
     deferred.reject({
       message : "File not found in the epub: " + url,
@@ -12677,15 +12884,15 @@ Unarchive.prototype.handleResponse = function(response, type){
   }
   else
   if(core.isXml(type)) {
-    r = new DOMParser().parseFromString(response, "text/xml");
+    r = core.parse(response, "text/xml");
 	}
   else
 	if(type == 'xhtml') {
-    r = new DOMParser().parseFromString(response, "application/xhtml+xml");
+    r = core.parse(response, "application/xhtml+xml");
 	}
   else
 	if(type == 'html' || type == 'htm') {
-    r = new DOMParser().parseFromString(response, "text/html");
+    r = core.parse(response, "text/html");
  	} else {
  	  r = response;
  	}
@@ -12700,7 +12907,9 @@ Unarchive.prototype.getBlob = function(url, _mimeType){
 
 	if(entry) {
     mimeType = _mimeType || mime.lookup(entry.name);
-    return new Blob([entry.asUint8Array()], {type : mimeType});
+    return entry.async("uint8array").then(function(uint8array) {
+      return new Blob([uint8array], {type : mimeType});
+    });
 	}
 };
 
@@ -12709,28 +12918,69 @@ Unarchive.prototype.getText = function(url, encoding){
 	var entry = this.zip.file(decodededUrl);
 
 	if(entry) {
-    return entry.asText();
+    return entry.async("string").then(function(text) {
+      return text;
+    });
 	}
 };
 
-Unarchive.prototype.createUrl = function(url, mime){
+Unarchive.prototype.getBase64 = function(url, _mimeType){
+	var decodededUrl = window.decodeURIComponent(url.substr(1)); // Remove first slash
+	var entry = this.zip.file(decodededUrl);
+  var mimeType;
+
+	if(entry) {
+    mimeType = _mimeType || mime.lookup(entry.name);
+    return entry.async("base64").then(function(data) {
+      return "data:" + mimeType + ";base64," + data;
+    });
+	}
+};
+
+Unarchive.prototype.createUrl = function(url, options){
 	var deferred = new RSVP.defer();
 	var _URL = window.URL || window.webkitURL || window.mozURL;
 	var tempUrl;
-	var blob;
+  var blob;
+	var response;
+  var useBase64 = options && options.base64;
 
 	if(url in this.urlCache) {
 		deferred.resolve(this.urlCache[url]);
 		return deferred.promise;
 	}
 
-	blob = this.getBlob(url);
+  if (useBase64) {
+    response = this.getBase64(url);
 
-  if (blob) {
-    tempUrl = _URL.createObjectURL(blob);
-    deferred.resolve(tempUrl);
-    this.urlCache[url] = tempUrl;
+    if (response) {
+      response.then(function(tempUrl) {
+
+        this.urlCache[url] = tempUrl;
+        deferred.resolve(tempUrl);
+
+      }.bind(this));
+
+    }
+
   } else {
+
+    response = this.getBlob(url);
+
+    if (response) {
+      response.then(function(blob) {
+
+        tempUrl = _URL.createObjectURL(blob);
+        this.urlCache[url] = tempUrl;
+        deferred.resolve(tempUrl);
+
+      }.bind(this));
+
+    }
+  }
+
+
+  if (!response) {
     deferred.reject({
       message : "File not found in the epub: " + url,
       stack : new Error().stack
@@ -12748,7 +12998,7 @@ Unarchive.prototype.revokeUrl = function(url){
 
 module.exports = Unarchive;
 
-},{"../libs/mime/mime":1,"./core":12,"./request":25,"jszip":"jszip","rsvp":4,"urijs":6}],30:[function(require,module,exports){
+},{"../libs/mime/mime":1,"./core":13,"./request":26,"jszip":"jszip","rsvp":5,"urijs":7}],31:[function(require,module,exports){
 function Views(container) {
   this.container = container;
   this._views = [];
@@ -12917,7 +13167,7 @@ Views.prototype.hide = function(){
 
 module.exports = Views;
 
-},{}],31:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 var RSVP = require('rsvp');
 var core = require('../core');
 var EpubCFI = require('../epubcfi');
@@ -13485,7 +13735,7 @@ RSVP.EventTarget.mixin(IframeView.prototype);
 
 module.exports = IframeView;
 
-},{"../contents":11,"../core":12,"../epubcfi":13,"rsvp":4}],"epub":[function(require,module,exports){
+},{"../contents":12,"../core":13,"../epubcfi":14,"rsvp":5}],"epub":[function(require,module,exports){
 var Book = require('./book');
 var EpubCFI = require('./epubcfi');
 var Rendition = require('./rendition');
@@ -13524,7 +13774,7 @@ ePub.register.manager("continuous", require('./managers/continuous'));
 
 module.exports = ePub;
 
-},{"./book":10,"./contents":11,"./epubcfi":13,"./managers/continuous":17,"./managers/single":18,"./rendition":23,"./views/iframe":31,"rsvp":4}]},{},["epub"])("epub")
+},{"./book":11,"./contents":12,"./epubcfi":14,"./managers/continuous":18,"./managers/single":19,"./rendition":24,"./views/iframe":32,"rsvp":5}]},{},["epub"])("epub")
 });
 
 

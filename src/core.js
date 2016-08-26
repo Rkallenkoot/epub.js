@@ -1,4 +1,5 @@
 var RSVP = require('rsvp');
+var base64 = require('base64-js');
 
 var requestAnimationFrame = (typeof window != 'undefined') ? (window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame) : false;
 /*
@@ -397,14 +398,37 @@ function isXml(ext) {
   return ['xml', 'opf', 'ncx'].indexOf(ext) > -1;
 }
 
-function createBlobUrl(content, mime){
-	var _URL = window.URL || window.webkitURL || window.mozURL;
-	var tempUrl;
+function createBlob(content, mime){
 	var blob = new Blob([content], {type : mime });
+
+  return blob;
+};
+
+function createBlobUrl(content, mime){
+  var _URL = window.URL || window.webkitURL || window.mozURL;
+	var tempUrl;
+	var blob = this.createBlob(content, mime);
 
   tempUrl = _URL.createObjectURL(blob);
 
   return tempUrl;
+};
+
+function createBase64Url(content, mime){
+  var string;
+  var data;
+  var datauri;
+
+  if (typeof(content) !== "string") {
+    // Only handles strings
+    return;
+  }
+
+  data = btoa(content);
+
+  datauri = "data:" + mime + ";base64," + data;
+
+  return datauri;
 };
 
 function type(obj){
@@ -473,6 +497,14 @@ function qsp(el, sel, props) {
   }
 }
 
+function blob2base64(blob, cb) {
+  var reader = new FileReader();
+  reader.readAsDataURL(blob);
+  reader.onloadend = function() {
+    cb(reader.result);
+  }
+}
+
 module.exports = {
   // 'uri': uri,
   // 'folder': folder,
@@ -496,10 +528,13 @@ module.exports = {
   'cleanStringForXpath': cleanStringForXpath,
   'indexOfTextNode': indexOfTextNode,
   'isXml': isXml,
+  'createBlob': createBlob,
   'createBlobUrl': createBlobUrl,
   'type': type,
   'parse' : parse,
   'qs' : qs,
   'qsa' : qsa,
-  'qsp' : qsp
+  'qsp' : qsp,
+  'blob2base64' : blob2base64,
+  'createBase64Url': createBase64Url
 };
