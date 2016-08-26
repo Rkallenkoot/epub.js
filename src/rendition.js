@@ -361,7 +361,7 @@ Rendition.prototype.spread = function(spread, min){
 Rendition.prototype.reportLocation = function(){
   return this.q.enqueue(function(){
     var location = this.manager.currentLocation();
-		if (location.then && typeof location.then === 'function') {
+		if (location && location.then && typeof location.then === 'function') {
 			location.then(function(result) {
 				this.location = result;
 		    this.trigger("locationChanged", this.location);
