@@ -49,7 +49,7 @@ function Navigation(_package, _request){
 			var loaded = loading.promise;
 
 			request(navigation.ncxUrl, 'xml').then(function(xml){
-				navigation.toc = parse.toc(xml);
+				navigation.toc = parse.ncx(xml);
 				navigation.loaded(navigation.toc);
 				loading.resolve(navigation.toc);
 			});
