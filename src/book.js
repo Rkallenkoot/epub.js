@@ -241,7 +241,6 @@ Book.prototype.unpack = function(packageXml){
 
 	book.package.baseUrl = book.baseUrl; // Provides a url base for resolving paths
 	book.package.basePath = book.basePath; // Provides a url base for resolving paths
-	console.log("book.baseUrl", book.baseUrl );
 
 	this.spine.load(book.package);
 
