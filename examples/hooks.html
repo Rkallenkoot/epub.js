@@ -16,10 +16,11 @@
   <a id="next" href="#next" class="navlink">...</a>
 
   <script>
-    var currentSectionIndex = 8;
     // Load the opf
     var book = ePub("https://s3.amazonaws.com/epubjs/books/moby-dick/OPS/package.opf");
-    var rendition = book.renderTo("viewer", { flow: "scrolled-doc" });
+    var rendition = book.renderTo("viewer", {
+      flow: "scrolled-doc"
+    });
 
     rendition.display("chapter_001.xhtml");
 
@@ -76,7 +77,7 @@
 
     // Add a single script
     rendition.hooks.content.register(function(view){
-     return view.addScript("https://code.jquery.com/jquery-2.1.4.min.js")
+     return view.contents.addScript("https://code.jquery.com/jquery-2.1.4.min.js")
        .then(function(){
             // init code
        });
@@ -86,8 +87,8 @@
     rendition.hooks.content.register(function(view){
 
         var loaded = Promise.all([
-            view.addScript("http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"),
-            view.addCss("http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.css")
+            // view.contents.addScript("http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.min.js"),
+            // view.contents.addStylesheet("http://code.jquery.com/mobile/1.4.5/jquery.mobile-1.4.5.css")
         ]);
 
         // return loaded promise
